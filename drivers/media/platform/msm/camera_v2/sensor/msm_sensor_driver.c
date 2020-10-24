@@ -18,6 +18,21 @@
 #include "msm_cci.h"
 #include "msm_camera_dt_util.h"
 
+#if defined(CONFIG_SR130PC20)
+#include "sr130pc20.h"
+#endif
+
+#if defined(CONFIG_S5K4ECGX)
+#include "s5k4ecgx.h"
+#endif
+
+#if defined(CONFIG_SR030PC50)
+#include "sr030pc50.h"
+#endif
+
+#if defined(CONFIG_SR200PC20)
+#include "sr200pc20.h"
+#endif
 /* Logging macro */
 /*#define MSM_SENSOR_DRIVER_DEBUG*/
 #undef CDBG
@@ -31,6 +46,46 @@
 
 /* Static declaration */
 static struct msm_sensor_ctrl_t *g_sctrl[MAX_CAMERAS];
+
+#if defined(CONFIG_SR130PC20)
+static struct msm_sensor_fn_t sr130pc20_sensor_func_tbl = {
+	.sensor_config = sr130pc20_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = sr130pc20_sensor_match_id,
+	.sensor_native_control = sr130pc20_sensor_native_control,
+};
+#endif
+
+#if defined(CONFIG_S5K4ECGX)
+static struct msm_sensor_fn_t s5k4ecgx_sensor_func_tbl = {
+	.sensor_config = s5k4ecgx_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = s5k4ecgx_sensor_match_id,
+	.sensor_native_control = s5k4ecgx_sensor_native_control,
+};
+#endif
+
+#if defined(CONFIG_SR030PC50)
+static struct msm_sensor_fn_t sr030pc50_sensor_func_tbl = {
+	.sensor_config = sr030pc50_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = sr030pc50_sensor_match_id,
+	.sensor_native_control = sr030pc50_sensor_native_control,
+};
+#endif
+
+#if defined(CONFIG_SR200PC20)
+static struct msm_sensor_fn_t sr200pc20_sensor_func_tbl = {
+	.sensor_config = sr200pc20_sensor_config,
+	.sensor_power_up = msm_sensor_power_up,
+	.sensor_power_down = msm_sensor_power_down,
+	.sensor_match_id = msm_sensor_match_id,
+	.sensor_native_control = sr200pc20_sensor_native_control,
+};
+#endif
 
 static int msm_sensor_platform_remove(struct platform_device *pdev)
 {
@@ -229,8 +284,10 @@ static int32_t msm_sensor_fill_actuator_subdevid_by_name(
 		return -EINVAL;
 
 	actuator_name_len = strlen(s_ctrl->sensordata->actuator_name);
-	if (actuator_name_len >= MAX_SENSOR_NAME)
+	if (actuator_name_len >= MAX_SENSOR_NAME) {
+		pr_err("msm_sensor_fill_actuator_subdevid_by_name: actuator_name_len is greater than max len\n");
 		return -EINVAL;
+	}
 
 	sensor_info = s_ctrl->sensordata->sensor_info;
 	actuator_subdev_id = &sensor_info->subdev_id[SUB_MODULE_ACTUATOR];
@@ -240,15 +297,17 @@ static int32_t msm_sensor_fill_actuator_subdevid_by_name(
 	 */
 	*actuator_subdev_id = -1;
 
-	if (0 == actuator_name_len)
+	if (0 == actuator_name_len) {
+		pr_err("msm_sensor_fill_actuator_subdevid_by_name: actuator_name_len is zero\n");
 		return 0;
+	}
 
 	src_node = of_parse_phandle(of_node, "qcom,actuator-src", 0);
 	if (!src_node) {
-		CDBG("%s:%d src_node NULL\n", __func__, __LINE__);
+		pr_err("%s:%d src_node NULL\n", __func__, __LINE__);
 	} else {
 		rc = of_property_read_u32(src_node, "cell-index", &val);
-		CDBG("%s qcom,actuator cell index %d, rc %d\n", __func__,
+		pr_err("%s qcom,actuator cell index %d, rc %d\n", __func__,
 			val, rc);
 		if (rc < 0) {
 			pr_err("%s failed %d\n", __func__, __LINE__);
@@ -358,6 +417,7 @@ int32_t msm_sensor_driver_probe(void *setting)
 	CDBG("sensor_id 0x%x", slave_info->sensor_id_info.sensor_id);
 	CDBG("size %d", slave_info->power_setting_array.size);
 	CDBG("size down %d", slave_info->power_setting_array.size_down);
+	CDBG("sensor_name %s", slave_info->sensor_name);
 
 	if (slave_info->is_init_params_valid) {
 		CDBG("position %d",
@@ -382,6 +442,31 @@ int32_t msm_sensor_driver_probe(void *setting)
 		rc = -EINVAL;
 		goto FREE_SLAVE_INFO;
 	}
+#if defined(CONFIG_SR130PC20)
+	if(slave_info->camera_id == CAMERA_2){
+
+		s_ctrl->func_tbl = &sr130pc20_sensor_func_tbl ;
+		sr130pc20_set_default_settings();
+
+	}
+#endif
+#if defined(CONFIG_S5K4ECGX)
+	if (slave_info->camera_id == CAMERA_0){
+
+		s_ctrl->func_tbl = &s5k4ecgx_sensor_func_tbl;
+
+    }
+#endif
+#if defined(CONFIG_SR030PC50)
+	if(slave_info->camera_id == CAMERA_2){
+		s_ctrl->func_tbl = &sr030pc50_sensor_func_tbl;
+	}
+#endif
+#if defined(CONFIG_SR200PC20)
+	if(slave_info->camera_id == CAMERA_2){
+		s_ctrl->func_tbl = &sr200pc20_sensor_func_tbl ;
+	}
+#endif
 
 	CDBG("s_ctrl[%d] %p", slave_info->camera_id, s_ctrl);
 
@@ -560,18 +645,32 @@ int32_t msm_sensor_driver_probe(void *setting)
 	/*
 	 * Update actuator subdevice Id by input actuator name
 	 */
+	pr_err("sensor_driver_probe: before: actuator subdev id = %d\n", s_ctrl->sensordata->sensor_info->subdev_id[2]); 
 	rc = msm_sensor_fill_actuator_subdevid_by_name(s_ctrl);
 	if (rc < 0) {
 		pr_err("%s failed %d\n", __func__, __LINE__);
 		goto FREE_CAMERA_INFO;
 	}
+	pr_err("sensor_driver_probe: after: actuator subdev id = %d\n", s_ctrl->sensordata->sensor_info->subdev_id[2]);
 
 	/* Power up and probe sensor */
+#if !defined(CONFIG_SEC_KLEOS_PROJECT) || !defined(CONFIG_SEC_FORTUNA_PROJECT)
 	rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
 	if (rc < 0) {
 		pr_err("%s power up failed", slave_info->sensor_name);
 		goto FREE_CAMERA_INFO;
 	}
+#endif
+#if defined(CONFIG_MSM_OTP)
+	if (!strcmp("sr544", slave_info->sensor_name)) {
+		pr_err("%s : read_otp_bank\n", __func__);
+		rc = s_ctrl->func_tbl->sensor_read_otp(s_ctrl);
+		if (rc < 0) {
+			pr_err("%s power up failed", slave_info->sensor_name);
+			goto FREE_CAMERA_INFO;
+		}
+	}
+#endif
 
 	pr_err("%s probe succeeded", slave_info->sensor_name);
 
@@ -595,8 +694,40 @@ int32_t msm_sensor_driver_probe(void *setting)
 		goto CAMERA_POWER_DOWN;
 	}
 
+#if 0
+	memcpy(slave_info->subdev_name, s_ctrl->msm_sd.sd.entity.name,
+			sizeof(slave_info->subdev_name));
+        slave_info->is_probe_succeed = 1;
+	slave_info->sensor_info.session_id = s_ctrl->sensordata->sensor_info->session_id;	
+	for (i = 0; i < SUB_MODULE_MAX; i++)
+		slave_info->sensor_info.subdev_id[i] =
+			s_ctrl->sensordata->sensor_info->subdev_id[i];
+	if (copy_to_user((void __user *)setting,
+		(void *)slave_info, sizeof(*slave_info))) {
+		pr_err("%s:%d copy failed\n", __func__, __LINE__);
+		rc = -EFAULT;
+	}
+#endif
+
+	memcpy(slave_info->subdev_name, s_ctrl->msm_sd.sd.entity.name,
+		sizeof(slave_info->subdev_name));
+	slave_info->is_probe_succeed = 1;
+	slave_info->sensor_info.session_id = s_ctrl->sensordata->sensor_info->session_id;
+	for (i = 0; i < SUB_MODULE_MAX; i++) {
+		slave_info->sensor_info.subdev_id[i] =
+			s_ctrl->sensordata->sensor_info->subdev_id[i];
+		pr_err("sensor_subdev_id = %d i = %d\n",slave_info->sensor_info.subdev_id[i], i); 
+	}
+	if (copy_to_user((void __user *)setting,
+		(void *)slave_info, sizeof(*slave_info))) {
+		pr_err("%s:%d copy failed\n", __func__, __LINE__);
+		rc = -EFAULT;
+	}
+
 	/* Power down */
+#if !defined(CONFIG_SEC_KLEOS_PROJECT) || !defined(CONFIG_SEC_FORTUNA_PROJECT)
 	s_ctrl->func_tbl->sensor_power_down(s_ctrl);
+#endif
 
 	rc = msm_sensor_fill_slave_info_init_params(
 		slave_info,

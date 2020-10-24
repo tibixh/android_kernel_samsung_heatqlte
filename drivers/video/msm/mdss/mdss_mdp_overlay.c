@@ -1027,6 +1027,8 @@ static void mdss_mdp_overlay_cleanup(struct msm_fb_data_type *mfd)
 	mutex_lock(&mdp5_data->list_lock);
 	list_for_each_entry_safe(pipe, tmp, &mdp5_data->pipes_cleanup, list) {
 		list_move(&pipe->list, &destroy_pipes);
+		mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_left); 
+		mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_right); 
 
 		/* make sure pipe fetch has been halted before freeing buffer */
 		if (mdss_mdp_pipe_fetch_halt(pipe)) {
@@ -1073,6 +1075,8 @@ static void mdss_mdp_overlay_cleanup(struct msm_fb_data_type *mfd)
 			__mdss_mdp_overlay_free_list_add(mfd, &pipe->front_buf);
 		mdss_mdp_overlay_free_buf(&pipe->back_buf);
 		list_del_init(&pipe->list);
+		mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_left);
+		mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_right);
 		mdss_mdp_pipe_destroy(pipe);
 	}
 	mutex_unlock(&mdp5_data->list_lock);
@@ -3176,6 +3180,26 @@ static int mdss_mdp_overlay_off(struct msm_fb_data_type *mfd)
 
 	if (!mdp5_data->ctl->power_on)
 		return 0;
+
+#ifdef CONFIG_SAMSUNG_LPM_MODE
+	/*
+	 * In case of LPM mode, the new lpmapp issues flip commands even after sleep flag is 
+	 * set in it. This results in multiple Overlay Commit operations to be triggered
+	 * even after Blanking display.
+	 *
+	 * Because of this behaviour, there were race conditions between FB_BLANK & overlay operation thread
+	 * in kernel, hence resulting in invalid context and causing panics - Null pointer deferences &
+	 * BUG_ON hit.
+	 *
+	 * So to avoid this, this workaround of waiting of active overlay commits is added before proceeding
+	 * with mdp off.
+	 *
+	 * NOTE: Enabling this only for lpm mode of operation, just to be on the safer side.
+	 */
+	if (poweroff_charging) {
+		wait_event(mfd->idle_wait_q,(!atomic_read(&mfd->commits_pending)) );
+	}
+#endif /* CONFIG_SAMSUNG_LPM_MODE */
 
 	mutex_lock(&mdp5_data->ov_lock);
 

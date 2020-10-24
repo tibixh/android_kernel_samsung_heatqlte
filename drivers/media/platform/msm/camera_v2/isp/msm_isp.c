@@ -199,6 +199,7 @@ static int vfe_probe(struct platform_device *pdev)
 	vfe_dev->stats = kzalloc(sizeof(struct msm_isp_statistics), GFP_KERNEL);
 	if (!vfe_dev->stats) {
 		pr_err("%s: no enough memory\n", __func__);
+		kfree(vfe_dev);
 		return -ENOMEM;
 	}
 	if (pdev->dev.of_node) {

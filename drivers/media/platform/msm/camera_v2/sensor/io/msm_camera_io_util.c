@@ -107,6 +107,17 @@ void msm_camera_io_memcpy(void __iomem *dest_addr,
 	msm_camera_io_dump(dest_addr, len);
 }
 
+void msm_camera_io_memcpy_mb(void __iomem *dest_addr,
+		void __iomem *src_addr, u32 len)
+{
+	int i;
+	u32 *d = (u32 *) dest_addr;
+	u32 *s = (u32 *) src_addr;
+
+	for (i = 0; i < (len / 4); i++)
+		msm_camera_io_w_mb(*s++, d++);
+}
+
 int msm_cam_clk_sel_src(struct device *dev, struct msm_cam_clk_info *clk_info,
 		struct msm_cam_clk_info *clk_src_info, int num_clk)
 {
@@ -480,6 +491,27 @@ int msm_camera_config_single_vreg(struct device *dev,
 			goto vreg_get_fail;
 		}
 		CDBG("%s enable %s\n", __func__, cam_vreg->reg_name);
+		if (!strncmp(cam_vreg->reg_name, "cam_vdig", 7)) {
+#if defined(CONFIG_MACH_ROSSA_CMCC) || defined(CONFIG_MACH_VIVALTO_AUS)
+			*reg_ptr = regulator_get(dev, "CAM_SENSOR_IO_1.8V");
+#else
+			*reg_ptr = regulator_get(dev, "CAM_SENSOR_CORE_1.2V");
+#endif
+			if (IS_ERR(*reg_ptr)) {
+				pr_err("%s: %s get failed\n", __func__,
+						cam_vreg->reg_name);
+				*reg_ptr = NULL;
+				goto vreg_get_fail;
+			}
+		} else if (!strncmp(cam_vreg->reg_name, "cam_vana", 8)) {
+			*reg_ptr = regulator_get(dev, "CAM_SENSOR_A2.8V");
+			if (IS_ERR(*reg_ptr)) {
+				pr_err("%s: %s get failed\n", __func__,
+						cam_vreg->reg_name);
+				*reg_ptr = NULL;
+				goto vreg_get_fail;
+			}
+		} else {
 		*reg_ptr = regulator_get(dev, cam_vreg->reg_name);
 		if (IS_ERR_OR_NULL(*reg_ptr)) {
 			pr_err("%s: %s get failed\n", __func__,
@@ -506,6 +538,7 @@ int msm_camera_config_single_vreg(struct device *dev,
 					goto vreg_set_opt_mode_fail;
 				}
 			}
+		}
 		}
 		rc = regulator_enable(*reg_ptr);
 		if (rc < 0) {

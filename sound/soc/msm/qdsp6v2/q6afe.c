@@ -23,6 +23,13 @@
 #include <sound/q6audio-v2.h>
 #include "msm-pcm-routing-v2.h"
 
+#if defined (CONFIG_SEC_FORTUNA_PROJECT)
+#ifdef pr_debug
+#undef pr_debug
+#define pr_debug pr_err
+#endif
+#endif
+
 #include "audio_acdb.h"
 enum {
 	AFE_RX_CAL,
@@ -3378,6 +3385,9 @@ int afe_set_digital_codec_core_clock(u16 port_id,
 			msecs_to_jiffies(TIMEOUT_MS));
 	if (!ret) {
 		pr_err("%s: wait_event timeout\n", __func__);
+#if defined (CONFIG_SEC_FORTUNA_PROJECT)
+		panic("DSP timeout error ... ");
+#endif
 		ret = -EINVAL;
 		goto fail_cmd;
 	}
@@ -3453,6 +3463,9 @@ int afe_set_lpass_clock(u16 port_id, struct afe_clk_cfg *cfg)
 			msecs_to_jiffies(TIMEOUT_MS));
 	if (!ret) {
 		pr_err("%s: wait_event timeout\n", __func__);
+#if defined (CONFIG_SEC_FORTUNA_PROJECT)
+		panic("DSP timeout error ... ");
+#endif
 		ret = -EINVAL;
 		goto fail_cmd;
 	}
