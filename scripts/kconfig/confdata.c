@@ -237,7 +237,7 @@ e_out:
 	return -1;
 }
 
-int conf_read_simple(const char *name, int def, int sym_init)
+int conf_read_simple(const char *name, int def)
 {
 	FILE *in = NULL;
 	char   *line = NULL;
@@ -285,8 +285,6 @@ load:
 	conf_unsaved = 0;
 
 	def_flags = SYMBOL_DEF << def;
-	if (!sym_init)
-		goto readsym;
 	for_all_symbols(i, sym) {
 		sym->flags |= SYMBOL_CHANGED;
 		sym->flags &= ~(def_flags|SYMBOL_VALID);
@@ -304,7 +302,7 @@ load:
 			sym->def[def].tri = no;
 		}
 	}
-readsym:
+
 	while (compat_getline(&line, &line_asize, in) != -1) {
 		conf_lineno++;
 		sym = NULL;
@@ -408,7 +406,7 @@ int conf_read(const char *name)
 
 	sym_set_change_count(0);
 
-	if (conf_read_simple(name, S_DEF_USER, true))
+	if (conf_read_simple(name, S_DEF_USER))
 		return 1;
 
 	for_all_symbols(i, sym) {
@@ -839,7 +837,7 @@ static int conf_split_config(void)
 	int res, i, fd;
 
 	name = conf_get_autoconfig_name();
-	conf_read_simple(name, S_DEF_AUTO, true);
+	conf_read_simple(name, S_DEF_AUTO);
 
 	if (chdir("include/config"))
 		return 1;
@@ -1085,7 +1083,7 @@ static void randomize_choice_values(struct symbol *csym)
 	csym->flags &= ~(SYMBOL_VALID);
 }
 
-void set_all_choice_values(struct symbol *csym)
+static void set_all_choice_values(struct symbol *csym)
 {
 	struct property *prop;
 	struct symbol *sym;
@@ -1102,7 +1100,7 @@ void set_all_choice_values(struct symbol *csym)
 	}
 	csym->flags |= SYMBOL_DEF_USER;
 	/* clear VALID to get value calculated */
-	csym->flags &= ~(SYMBOL_VALID | SYMBOL_NEED_SET_CHOICE_VALUES);
+	csym->flags &= ~(SYMBOL_VALID);
 }
 
 void conf_set_all_new_symbols(enum conf_def_mode mode)
@@ -1204,14 +1202,6 @@ void conf_set_all_new_symbols(enum conf_def_mode mode)
 	 * selected in a choice block and we set it to yes,
 	 * and the rest to no.
 	 */
-	if (mode != def_random) {
-		for_all_symbols(i, csym) {
-			if ((sym_is_choice(csym) && !sym_has_value(csym)) ||
-			    sym_is_choice_value(csym))
-				csym->flags |= SYMBOL_NEED_SET_CHOICE_VALUES;
-		}
-	}
-
 	for_all_symbols(i, csym) {
 		if (sym_has_value(csym) || !sym_is_choice(csym))
 			continue;
@@ -1219,5 +1209,7 @@ void conf_set_all_new_symbols(enum conf_def_mode mode)
 		sym_calc_value(csym);
 		if (mode == def_random)
 			randomize_choice_values(csym);
+		else
+			set_all_choice_values(csym);
 	}
 }
